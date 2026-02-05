@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili 快捷评论发布
 // @namespace    https://github.com/codertesla/EasyComment
-// @version      1.1.0
+// @version      1.1.1
 // @description  在 B 站视频页使用 Cmd+Enter (Mac) 或 Ctrl+Enter (Windows/Linux) 快速发布评论
 // @author       codertesla
 // @match        https://www.bilibili.com/video/*
