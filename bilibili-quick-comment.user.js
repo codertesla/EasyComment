@@ -1,15 +1,19 @@
 // ==UserScript==
 // @name         Bilibili 快捷评论发布
-// @namespace    https://github.com/codertesla
+// @namespace    https://github.com/codertesla/EasyComment
 // @version      1.1.0
 // @description  在 B 站视频页使用 Cmd+Enter (Mac) 或 Ctrl+Enter (Windows/Linux) 快速发布评论
-// @author       CoderTesla
+// @author       codertesla
 // @match        https://www.bilibili.com/video/*
 // @match        https://www.bilibili.com/bangumi/play/*
 // @match        https://www.bilibili.com/list/*
 // @icon         https://www.bilibili.com/favicon.ico
-// @grant        none
+// @supportURL   https://github.com/codertesla/EasyComment
+// @homepageURL  https://github.com/codertesla/EasyComment
 // @license      MIT
+// @updateURL    https://greasyfork.org/zh-CN/scripts/565212-bilibili-快捷评论发布
+// @downloadURL  https://greasyfork.org/zh-CN/scripts/565212-bilibili-快捷评论发布
+// @grant        none
 // @run-at       document-end
 // ==/UserScript==
 
