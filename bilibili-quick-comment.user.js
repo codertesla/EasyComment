@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bilibili 快捷评论发布
 // @namespace    https://github.com/codertesla/EasyComment
-// @version      1.1.1
+// @version      1.1.2
 // @description  在 B 站视频页使用 Cmd+Enter (Mac) 或 Ctrl+Enter (Windows/Linux) 快速发布评论
 // @author       codertesla
 // @match        https://www.bilibili.com/video/*
@@ -21,58 +21,62 @@
     'use strict';
 
     /**
-     * 在 Shadow DOM 中查找发布按钮
-     * B 站新版评论区使用了 Shadow DOM，需要递归查找
+     * 获取深层激活的元素（穿透 Shadow DOM）
      */
-    function findSendButton() {
-        // 方法1：直接查找 #pub 内的 button（新版评论区）
-        const pubDiv = document.getElementById('pub');
-        if (pubDiv) {
-            const btn = pubDiv.querySelector('button');
-            if (btn) return btn;
+    function getDeepActiveElement() {
+        let active = document.activeElement;
+        while (active && active.shadowRoot && active.shadowRoot.activeElement) {
+            active = active.shadowRoot.activeElement;
         }
+        return active;
+    }
 
-        // 方法2：通过 Shadow DOM 查找
-        const commentApp = document.getElementById('commentapp');
-        if (commentApp) {
-            // 查找 bili-comments 组件
-            const biliComments = commentApp.querySelector('bili-comments');
-            if (biliComments && biliComments.shadowRoot) {
-                // 在 header 中查找发布按钮
-                const header = biliComments.shadowRoot.querySelector('bili-comments-header-renderer');
-                if (header && header.shadowRoot) {
-                    const commentBox = header.shadowRoot.querySelector('bili-comment-box');
-                    if (commentBox && commentBox.shadowRoot) {
-                        const pubDiv = commentBox.shadowRoot.getElementById('pub');
-                        if (pubDiv) {
-                            const btn = pubDiv.querySelector('button');
-                            if (btn && !btn.disabled) return btn;
-                        }
-                    }
-                }
+    /**
+     * 从当前激活的元素向上查找发布按钮
+     */
+    function getSendButtonFromActiveElement() {
+        const activeElement = getDeepActiveElement();
+        if (!activeElement) return null;
 
-                // 在回复区域查找（楼中楼）
-                const threads = biliComments.shadowRoot.querySelectorAll('bili-comment-thread-renderer');
-                for (const thread of threads) {
-                    if (thread.shadowRoot) {
-                        const commentBox = thread.shadowRoot.querySelector('bili-comment-box');
-                        if (commentBox && commentBox.shadowRoot) {
-                            const editor = commentBox.shadowRoot.getElementById('editor');
-                            // 检查是否是当前激活的编辑器
-                            if (editor && editor.classList.contains('active')) {
-                                const pubDiv = commentBox.shadowRoot.getElementById('pub');
-                                if (pubDiv) {
-                                    const btn = pubDiv.querySelector('button');
-                                    if (btn && !btn.disabled) return btn;
-                                }
-                            }
-                        }
+        let node = activeElement;
+        while (node) {
+            if (node.tagName && node.tagName.toLowerCase() === 'bili-comment-box') {
+                if (node.shadowRoot) {
+                    const pubDiv = node.shadowRoot.getElementById('pub');
+                    if (pubDiv) {
+                        const btn = pubDiv.querySelector('button');
+                        if (btn && !btn.disabled) return btn;
                     }
                 }
             }
+            
+            // 向上遍历，穿透 Shadow DOM
+            if (node.parentNode) {
+                node = node.parentNode;
+            } else if (node instanceof ShadowRoot && node.host) {
+                node = node.host;
+            } else {
+                break;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 在 Shadow DOM 中查找发布按钮
+     */
+    function findSendButton() {
+        // 方法1：从当前激活的输入框按层级往上找（支持任意深度的 Shadow DOM，含嵌套回复框）
+        const btnFromActive = getSendButtonFromActiveElement();
+        if (btnFromActive) return btnFromActive;
+
+        // 方法2：旧版 DOM 直接查找
+        const pubDiv = document.getElementById('pub');
+        if (pubDiv) {
+            const btn = pubDiv.querySelector('button');
+            if (btn && !btn.disabled) return btn;
         }
 
-        // 方法3：旧版评论区
         const oldSendBtn = document.querySelector('.reply-box-send:not(.disabled)');
         if (oldSendBtn) return oldSendBtn;
 
@@ -83,68 +87,50 @@
      * 检查当前焦点是否在评论输入框内
      */
     function isInCommentInput() {
-        const activeElement = document.activeElement;
+        const activeElement = getDeepActiveElement();
+        if (!activeElement) return false;
 
-        // 检查是否在 Shadow DOM 的输入框内
-        if (activeElement && activeElement.shadowRoot) {
-            const editor = activeElement.shadowRoot.getElementById('editor');
-            if (editor) return true;
+        // 检查新版 Shadow DOM 输入框
+        if (activeElement.id === 'editor' && activeElement.hasAttribute('contenteditable')) {
+            return true;
         }
 
         // 检查常见的评论输入框类名
-        if (activeElement) {
+        if (activeElement.classList) {
             const classList = activeElement.classList;
             if (classList.contains('reply-box-textarea') ||
                 classList.contains('brt-editor') ||
                 classList.contains('ipt-txt')) {
                 return true;
             }
-
-            // 检查 placeholder 属性
-            const placeholder = activeElement.getAttribute('placeholder') || '';
-            if (placeholder.includes('评论') || placeholder.includes('想说')) {
-                return true;
-            }
-
-            // 检查父元素
-            if (activeElement.closest('.comment-send') ||
-                activeElement.closest('.reply-box') ||
-                activeElement.closest('.main-reply-box') ||
-                activeElement.closest('bili-comment-box')) {
-                return true;
-            }
         }
 
-        // 检查是否有激活的编辑器（通过 Shadow DOM）
-        const commentApp = document.getElementById('commentapp');
-        if (commentApp) {
-            const biliComments = commentApp.querySelector('bili-comments');
-            if (biliComments && biliComments.shadowRoot) {
-                // 检查主评论框
-                const header = biliComments.shadowRoot.querySelector('bili-comments-header-renderer');
-                if (header && header.shadowRoot) {
-                    const commentBox = header.shadowRoot.querySelector('bili-comment-box');
-                    if (commentBox && commentBox.shadowRoot) {
-                        const editor = commentBox.shadowRoot.getElementById('editor');
-                        if (editor && editor.classList.contains('active')) {
-                            return true;
-                        }
-                    }
-                }
+        // 检查 placeholder 属性
+        const placeholder = activeElement.getAttribute('placeholder') || '';
+        if (placeholder.includes('评论') || placeholder.includes('想说')) {
+            return true;
+        }
 
-                // 检查回复框
-                const threads = biliComments.shadowRoot.querySelectorAll('bili-comment-thread-renderer');
-                for (const thread of threads) {
-                    if (thread.shadowRoot) {
-                        const commentBox = thread.shadowRoot.querySelector('bili-comment-box');
-                        if (commentBox && commentBox.shadowRoot) {
-                            const editor = commentBox.shadowRoot.getElementById('editor');
-                            if (editor && editor.classList.contains('active')) {
-                                return true;
-                            }
-                        }
-                    }
-                }
+        // 检查父元素
+        let node = activeElement;
+        while (node) {
+            if (node.classList && (
+                node.classList.contains('comment-send') ||
+                node.classList.contains('reply-box') ||
+                node.classList.contains('main-reply-box')
+            )) {
+                return true;
+            }
+            if (node.tagName && node.tagName.toLowerCase() === 'bili-comment-box') {
+                return true;
+            }
+
+            if (node.parentNode) {
+                node = node.parentNode;
+            } else if (node instanceof ShadowRoot && node.host) {
+                node = node.host;
+            } else {
+                break;
             }
         }
 
